@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const brailleOutput = document.getElementById('braille-output');
     const detailedMapping = document.getElementById('detailed-mapping');
     const readAloudButton = document.getElementById('read-aloud-button');
+    const audioPlayer = document.getElementById('audio-player');
 
     let recognition;
     let isRecording = false;
@@ -61,7 +62,7 @@ document.addEventListener('DOMContentLoaded', function () {
         showNotification('Unsupported', 'Speech Recognition not supported');
     }
 
-    // ✅ Typing Input
+    // ✅ Typing input to braille
     textInput.addEventListener('input', function () {
         const text = textInput.value.trim();
         if (text) {
@@ -72,68 +73,55 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // 🎤 Start / Stop Mic
-    if (recordButton) {
-        recordButton.addEventListener('click', () => {
-            if (recognition && !isRecording) {
-                textInput.value = '';
-                recognition.start();
+    // ✅ Start mic
+    recordButton.addEventListener('click', () => {
+        if (recognition && !isRecording) {
+            textInput.value = '';
+            recognition.start();
+        }
+    });
+
+    // ✅ Stop mic
+    stopRecordButton.addEventListener('click', () => {
+        if (recognition && isRecording) {
+            recognition.stop();
+        }
+    });
+
+    // ✅ Read Aloud using backend (edge-tts)
+    readAloudButton.addEventListener('click', function () {
+        const text = textInput.value.trim();
+        if (!text) {
+            showNotification('Error', 'No text to read');
+            return;
+        }
+
+        fetch('/api/text-to-speech', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, language: 'english' })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.audio_url) {
+                audioPlayer.src = data.audio_url;
+                audioPlayer.play();
+                showNotification('Success', 'Reading text aloud');
+            } else {
+                showNotification('Error', data.error || 'Failed to read text aloud');
             }
+        })
+        .catch(err => {
+            console.error('TTS Error:', err);
+            showNotification('Error', 'Failed to connect to server');
         });
-    }
+    });
 
-    if (stopRecordButton) {
-        stopRecordButton.addEventListener('click', () => {
-            if (recognition && isRecording) {
-                recognition.stop();
-            }
-        });
-    }
-
-    // ✅ Read Aloud using backend audio (works in Android WebView)
-    if (readAloudButton) {
-        readAloudButton.addEventListener('click', function () {
-            const text = textInput.value.trim();
-            const language = 'english'; // or 'hindi' if needed
-
-            if (!text) {
-                showNotification('Error', 'No text to read');
-                return;
-            }
-
-            fetch('/api/text-to-speech', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text, language: language })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.error) {
-                    showNotification('Error', data.error);
-                    return;
-                }
-
-                const audio = new Audio(data.audio_url);
-                audio.play().then(() => {
-                    showNotification('Success', 'Playing audio');
-                }).catch(err => {
-                    showNotification('Error', 'Could not play audio');
-                    console.error('Audio Play Error:', err);
-                });
-            })
-            .catch(err => {
-                console.error('TTS API Error:', err);
-                showNotification('Error', 'Failed to fetch audio');
-            });
-        });
-    }
-
-    // ✅ Convert to Braille (via backend API)
     function convertTextToBraille(text) {
         fetch('/api/text-to-braille', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text })
+            body: JSON.stringify({ text: text, language: 'english' }),
         })
         .then(res => res.json())
         .then(data => {
@@ -141,7 +129,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 showNotification('Error', data.error);
                 return;
             }
-
             brailleOutput.textContent = data.braille || '';
             displayDetailedMapping(data.detailed_mapping || []);
         })
@@ -151,7 +138,6 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ✅ Table Output
     function displayDetailedMapping(mapping) {
         detailedMapping.innerHTML = '';
         if (!mapping.length) return;
@@ -173,7 +159,6 @@ document.addEventListener('DOMContentLoaded', function () {
         detailedMapping.appendChild(table);
     }
 
-    // ✅ Toast Notification
     function showNotification(title, message) {
         const notification = document.getElementById('notification');
         const notificationTitle = document.getElementById('notification-title');
@@ -185,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function () {
             notification.classList.add('show');
             setTimeout(() => notification.classList.remove('show'), 3000);
         } else {
-            console.log(`${title}: ${message}`);
+            alert(`${title}: ${message}`);
         }
     }
 });
