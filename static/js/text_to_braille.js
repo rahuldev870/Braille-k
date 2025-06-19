@@ -1,3 +1,6 @@
+// ✅ Full FIXED JS Code for `text_to_braille.js`
+// Replaces speechSynthesis with backend-powered TTS (same as image-to-braille)
+
 document.addEventListener('DOMContentLoaded', function () {
     const textInput = document.getElementById('text-input');
     const recordButton = document.getElementById('record-button');
@@ -39,7 +42,6 @@ document.addEventListener('DOMContentLoaded', function () {
             const combined = finalTranscript + interimTranscript;
             textInput.value = combined;
 
-            // ✅ Convert only when final text available
             if (finalTranscript.trim()) {
                 convertTextToBraille(finalTranscript.trim());
             }
@@ -62,7 +64,7 @@ document.addEventListener('DOMContentLoaded', function () {
         showNotification('Unsupported', 'Speech Recognition not supported');
     }
 
-    // ✅ Typing Input
+    // Typing Input
     textInput.addEventListener('input', function () {
         const text = textInput.value.trim();
         if (text) {
@@ -73,7 +75,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // 🎤 Start / Stop Mic
+    // Mic Controls
     if (recordButton) {
         recordButton.addEventListener('click', () => {
             if (recognition && !isRecording) {
@@ -91,7 +93,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ✅ Read Aloud with WebView-safe Speech API
+    // ✅ Backend-based Read Aloud
     if (readAloudButton) {
         readAloudButton.addEventListener('click', function () {
             const text = textInput.value.trim();
@@ -100,23 +102,35 @@ document.addEventListener('DOMContentLoaded', function () {
                 return;
             }
 
-            if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'en-US'; // Use 'hi-IN' for Hindi if needed
-                speechSynthesis.speak(utterance);
-                showNotification('Success', 'Reading text aloud');
-            } else {
-                showNotification('Error', 'Speech synthesis not supported');
-            }
+            fetch('/api/text-to-speech', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text, lang: 'en' })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        showNotification('Error', data.error);
+                        return;
+                    }
+
+                    const audio = new Audio(data.audio_url);
+                    audio.play();
+                    showNotification('Success', 'Reading aloud');
+                })
+                .catch(err => {
+                    console.error('TTS Error:', err);
+                    showNotification('Error', 'Failed to generate audio');
+                });
         });
     }
 
-    // ✅ Convert to Braille (via backend API)
+    // Convert to Braille
     function convertTextToBraille(text) {
         fetch('/api/text-to-braille', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text }),
+            body: JSON.stringify({ text: text })
         })
             .then(res => res.json())
             .then(data => {
@@ -134,7 +148,7 @@ document.addEventListener('DOMContentLoaded', function () {
             });
     }
 
-    // ✅ Table Output
+    // Display Table
     function displayDetailedMapping(mapping) {
         detailedMapping.innerHTML = '';
         if (!mapping.length) return;
@@ -156,7 +170,7 @@ document.addEventListener('DOMContentLoaded', function () {
         detailedMapping.appendChild(table);
     }
 
-    // ✅ Toast Notification
+    // Notification
     function showNotification(title, message) {
         const notification = document.getElementById('notification');
         const notificationTitle = document.getElementById('notification-title');
