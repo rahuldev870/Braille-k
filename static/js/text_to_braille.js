@@ -5,29 +5,27 @@ document.addEventListener('DOMContentLoaded', function () {
     const brailleOutput = document.getElementById('braille-output');
     const detailedMapping = document.getElementById('detailed-mapping');
     const readAloudButton = document.getElementById('read-aloud-button');
-    const audioPlayer = document.getElementById('audio-player');
 
     let recognition;
     let isRecording = false;
 
-    // ✅ Initialize speech recognition
+    // 🎤 Initialize Speech Recognition
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'en-US';
         recognition.continuous = true;
         recognition.interimResults = true;
 
-        recognition.onstart = function () {
+        recognition.onstart = () => {
             isRecording = true;
             recordButton.classList.add('d-none');
             stopRecordButton.classList.remove('d-none');
             showNotification('Recording Started', 'Speak now...');
         };
 
-        recognition.onresult = function (event) {
+        recognition.onresult = (event) => {
             let finalTranscript = '';
             let interimTranscript = '';
-
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const transcript = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
@@ -36,7 +34,6 @@ document.addEventListener('DOMContentLoaded', function () {
                     interimTranscript += transcript;
                 }
             }
-
             const combined = finalTranscript + interimTranscript;
             textInput.value = combined;
 
@@ -45,13 +42,13 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         };
 
-        recognition.onerror = function (event) {
-            console.error('Recognition error:', event.error);
+        recognition.onerror = (event) => {
+            console.error('Speech Recognition Error:', event.error);
             showNotification('Error', 'Speech recognition error: ' + event.error);
             stopRecording();
         };
 
-        recognition.onend = function () {
+        recognition.onend = () => {
             isRecording = false;
             recordButton.classList.remove('d-none');
             stopRecordButton.classList.add('d-none');
@@ -62,8 +59,22 @@ document.addEventListener('DOMContentLoaded', function () {
         showNotification('Unsupported', 'Speech Recognition not supported');
     }
 
-    // ✅ Typing input to braille
-    textInput.addEventListener('input', function () {
+    // 🎤 Start/Stop Mic Buttons
+    recordButton?.addEventListener('click', () => {
+        if (recognition && !isRecording) {
+            textInput.value = '';
+            recognition.start();
+        }
+    });
+
+    stopRecordButton?.addEventListener('click', () => {
+        if (recognition && isRecording) {
+            recognition.stop();
+        }
+    });
+
+    // 📥 Input listener
+    textInput.addEventListener('input', () => {
         const text = textInput.value.trim();
         if (text) {
             convertTextToBraille(text);
@@ -73,23 +84,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // ✅ Start mic
-    recordButton.addEventListener('click', () => {
-        if (recognition && !isRecording) {
-            textInput.value = '';
-            recognition.start();
-        }
-    });
-
-    // ✅ Stop mic
-    stopRecordButton.addEventListener('click', () => {
-        if (recognition && isRecording) {
-            recognition.stop();
-        }
-    });
-
-    // ✅ Read Aloud using backend (edge-tts)
-    readAloudButton.addEventListener('click', function () {
+    // 🔊 Read Aloud (uses backend TTS, works in WebView + APK)
+    readAloudButton?.addEventListener('click', () => {
         const text = textInput.value.trim();
         if (!text) {
             showNotification('Error', 'No text to read');
@@ -99,29 +95,30 @@ document.addEventListener('DOMContentLoaded', function () {
         fetch('/api/text-to-speech', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text, language: 'english' })
+            body: JSON.stringify({ text, language: 'english' })
         })
         .then(res => res.json())
         .then(data => {
             if (data.audio_url) {
-                audioPlayer.src = data.audio_url;
-                audioPlayer.play();
-                showNotification('Success', 'Reading text aloud');
+                const audio = new Audio(data.audio_url);
+                audio.play();
+                showNotification('Success', 'Reading text aloud...');
             } else {
-                showNotification('Error', data.error || 'Failed to read text aloud');
+                showNotification('Error', 'Failed to generate audio');
             }
         })
         .catch(err => {
             console.error('TTS Error:', err);
-            showNotification('Error', 'Failed to connect to server');
+            showNotification('Error', 'Text-to-Speech failed');
         });
     });
 
+    // 🔡 Convert Text to Braille
     function convertTextToBraille(text) {
         fetch('/api/text-to-braille', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text, language: 'english' }),
+            body: JSON.stringify({ text, language: 'english' })
         })
         .then(res => res.json())
         .then(data => {
@@ -133,11 +130,12 @@ document.addEventListener('DOMContentLoaded', function () {
             displayDetailedMapping(data.detailed_mapping || []);
         })
         .catch(err => {
-            console.error('Braille Error:', err);
+            console.error('Braille Conversion Error:', err);
             showNotification('Error', 'Failed to convert to Braille');
         });
     }
 
+    // 🔤 Braille Mapping Table
     function displayDetailedMapping(mapping) {
         detailedMapping.innerHTML = '';
         if (!mapping.length) return;
@@ -154,11 +152,11 @@ document.addEventListener('DOMContentLoaded', function () {
             row.innerHTML = `<td>${item.original}</td><td style="font-size:24px;">${item.braille}</td>`;
             tbody.appendChild(row);
         });
-
         table.appendChild(tbody);
         detailedMapping.appendChild(table);
     }
 
+    // 🔔 Toast Notification
     function showNotification(title, message) {
         const notification = document.getElementById('notification');
         const notificationTitle = document.getElementById('notification-title');
@@ -171,6 +169,13 @@ document.addEventListener('DOMContentLoaded', function () {
             setTimeout(() => notification.classList.remove('show'), 3000);
         } else {
             alert(`${title}: ${message}`);
+        }
+    }
+
+    // 🛑 Helper for recognition
+    function stopRecording() {
+        if (recognition && isRecording) {
+            recognition.stop();
         }
     }
 });
