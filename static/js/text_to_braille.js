@@ -1,6 +1,3 @@
-// ✅ Full FIXED JS Code for `text_to_braille.js`
-// Replaces speechSynthesis with backend-powered TTS (same as image-to-braille)
-
 document.addEventListener('DOMContentLoaded', function () {
     const textInput = document.getElementById('text-input');
     const recordButton = document.getElementById('record-button');
@@ -12,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let recognition;
     let isRecording = false;
 
-    // Initialize speech recognition
+    // ✅ Initialize speech recognition
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'en-US';
@@ -64,7 +61,7 @@ document.addEventListener('DOMContentLoaded', function () {
         showNotification('Unsupported', 'Speech Recognition not supported');
     }
 
-    // Typing Input
+    // ✅ Typing Input
     textInput.addEventListener('input', function () {
         const text = textInput.value.trim();
         if (text) {
@@ -75,7 +72,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Mic Controls
+    // 🎤 Start / Stop Mic
     if (recordButton) {
         recordButton.addEventListener('click', () => {
             if (recognition && !isRecording) {
@@ -93,10 +90,12 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // ✅ Backend-based Read Aloud
+    // ✅ Read Aloud using backend audio (works in Android WebView)
     if (readAloudButton) {
         readAloudButton.addEventListener('click', function () {
             const text = textInput.value.trim();
+            const language = 'english'; // or 'hindi' if needed
+
             if (!text) {
                 showNotification('Error', 'No text to read');
                 return;
@@ -105,33 +104,8 @@ document.addEventListener('DOMContentLoaded', function () {
             fetch('/api/text-to-speech', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: text, lang: 'en' })
+                body: JSON.stringify({ text: text, language: language })
             })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.error) {
-                        showNotification('Error', data.error);
-                        return;
-                    }
-
-                    const audio = new Audio(data.audio_url);
-                    audio.play();
-                    showNotification('Success', 'Reading aloud');
-                })
-                .catch(err => {
-                    console.error('TTS Error:', err);
-                    showNotification('Error', 'Failed to generate audio');
-                });
-        });
-    }
-
-    // Convert to Braille
-    function convertTextToBraille(text) {
-        fetch('/api/text-to-braille', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text })
-        })
             .then(res => res.json())
             .then(data => {
                 if (data.error) {
@@ -139,16 +113,45 @@ document.addEventListener('DOMContentLoaded', function () {
                     return;
                 }
 
-                brailleOutput.textContent = data.braille || '';
-                displayDetailedMapping(data.detailed_mapping || []);
+                const audio = new Audio(data.audio_url);
+                audio.play().then(() => {
+                    showNotification('Success', 'Playing audio');
+                }).catch(err => {
+                    showNotification('Error', 'Could not play audio');
+                    console.error('Audio Play Error:', err);
+                });
             })
             .catch(err => {
-                console.error('Braille Error:', err);
-                showNotification('Error', 'Failed to convert to Braille');
+                console.error('TTS API Error:', err);
+                showNotification('Error', 'Failed to fetch audio');
             });
+        });
     }
 
-    // Display Table
+    // ✅ Convert to Braille (via backend API)
+    function convertTextToBraille(text) {
+        fetch('/api/text-to-braille', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.error) {
+                showNotification('Error', data.error);
+                return;
+            }
+
+            brailleOutput.textContent = data.braille || '';
+            displayDetailedMapping(data.detailed_mapping || []);
+        })
+        .catch(err => {
+            console.error('Braille Error:', err);
+            showNotification('Error', 'Failed to convert to Braille');
+        });
+    }
+
+    // ✅ Table Output
     function displayDetailedMapping(mapping) {
         detailedMapping.innerHTML = '';
         if (!mapping.length) return;
@@ -170,7 +173,7 @@ document.addEventListener('DOMContentLoaded', function () {
         detailedMapping.appendChild(table);
     }
 
-    // Notification
+    // ✅ Toast Notification
     function showNotification(title, message) {
         const notification = document.getElementById('notification');
         const notificationTitle = document.getElementById('notification-title');
