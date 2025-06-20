@@ -6,36 +6,14 @@
     <title>Text to Braille - BrailleConnect</title>
     <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
         <div class="container">
             <a class="navbar-brand" href="/">
-                <i class="fas fa-braille me-2"></i>
-                BrailleConnect
+                <i class="fas fa-braille me-2"></i> BrailleConnect
             </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">Home</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="servicesDropdown" role="button" data-bs-toggle="dropdown">
-                            Our Services
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-dark">
-                            <li><a class="dropdown-item" href="/text-to-braille">Text to Braille</a></li>
-                            <li><a class="dropdown-item" href="/image-to-braille">Image to Braille</a></li>
-                            <li><a class="dropdown-item" href="/braille-to-speech">Braille to Speech</a></li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
         </div>
     </nav>
 
@@ -49,7 +27,8 @@
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h4 class="m-0">Text Input</h4>
                         <div>
-                            <button onclick="startAndroidSpeech()" class="btn btn-danger" title="Speak using mic">
+                            <!-- ✅ Android WebView Mic -->
+                            <button onclick="AndroidInterface.startSpeech()" class="btn btn-danger" title="Speak">
                                 <i class="fas fa-microphone"></i>
                             </button>
                         </div>
@@ -72,36 +51,8 @@
                         <h4 class="m-0">Braille Output</h4>
                     </div>
                     <div class="card-body">
-                        <div class="braille-text p-3 mb-3 bg-body-tertiary rounded" id="braille-output">
-                            <!-- Braille output will be shown here -->
-                        </div>
-                        <div id="detailed-mapping">
-                            <!-- Detailed character mapping will be shown here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card bg-dark text-white">
-                    <div class="card-header">
-                        <h4 class="m-0">How to Use</h4>
-                    </div>
-                    <div class="card-body">
-                        <p>This tool converts typed or spoken English text into Braille characters. Follow these steps:</p>
-                        <ol>
-                            <li>Type your text in the input box, or click the microphone button to record speech.</li>
-                            <li>Your text will be automatically converted to Braille in the output section.</li>
-                            <li>You can also click "Read Aloud" to hear the text spoken.</li>
-                            <li>The table below the Braille output shows each character and its Braille representation.</li>
-                        </ol>
-                        <div class="text-center mt-4">
-                            <a href="/" class="btn btn-outline-light">
-                                <i class="fas fa-home me-2"></i> Back to Homepage
-                            </a>
-                        </div>
+                        <div id="braille-output" class="p-3 bg-secondary rounded mb-3"></div>
+                        <div id="detailed-mapping"></div>
                     </div>
                 </div>
             </div>
@@ -109,94 +60,47 @@
     </div>
 
     <!-- Footer -->
-    <footer class="bg-dark text-white text-center">
-        <div class="container">
-            <p class="mb-0">&copy;  BrailleConnect. All rights reserved.</p>
-        </div>
+    <footer class="bg-dark text-white text-center py-2">
+        <p class="mb-0">&copy; 2025 BrailleConnect. All rights reserved.</p>
     </footer>
 
-    <!-- Notification -->
-    <div class="notification" id="notification">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <h5 class="m-0" id="notification-title">Notification Title</h5>
-            <button type="button" class="btn-close btn-close-white" aria-label="Close"></button>
-        </div>
-        <p class="m-0" id="notification-message">Notification message here.</p>
-    </div>
-
-    <!-- JavaScript -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- ✅ Main JavaScript -->
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const textInput = document.getElementById('text-input');
-            const brailleOutput = document.getElementById('braille-output');
-            const detailedMapping = document.getElementById('detailed-mapping');
+        function convertTextToBraille(text) {
+            fetch('/api/text-to-braille', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, language: 'english' })
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('braille-output').textContent = data.braille || '';
+                displayMapping(data.detailed_mapping || []);
+            })
+            .catch(() => alert('Conversion failed'));
+        }
 
-            function convertTextToBraille(text) {
-                fetch('/api/text-to-braille', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text, language: 'english' })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.error) {
-                        showNotification('Error', data.error);
-                        return;
-                    }
-                    brailleOutput.textContent = data.braille || '';
-                    displayDetailedMapping(data.detailed_mapping || []);
-                })
-                .catch(() => {
-                    showNotification('Error', 'Failed to convert to Braille');
-                });
-            }
+        function displayMapping(mapping) {
+            const container = document.getElementById('detailed-mapping');
+            container.innerHTML = '';
+            if (!mapping.length) return;
+            const table = document.createElement('table');
+            table.className = 'table table-bordered table-dark';
+            table.innerHTML = `<thead><tr><th>Character</th><th>Braille</th></tr></thead><tbody></tbody>`;
+            mapping.forEach(m => {
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${m.original}</td><td style="font-size: 1.5rem">${m.braille}</td>`;
+                table.querySelector('tbody').appendChild(row);
+            });
+            container.appendChild(table);
+        }
 
-            function displayDetailedMapping(mapping) {
-                detailedMapping.innerHTML = '';
-                if (!mapping.length) return;
-                const table = document.createElement('table');
-                table.className = 'table table-dark table-bordered';
-                const thead = document.createElement('thead');
-                thead.innerHTML = '<tr><th>Character</th><th>Braille</th></tr>';
-                table.appendChild(thead);
-                const tbody = document.createElement('tbody');
-                mapping.forEach(item => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `<td>${item.original}</td><td style="font-size:24px;">${item.braille}</td>`;
-                    tbody.appendChild(row);
-                });
-                table.appendChild(tbody);
-                detailedMapping.appendChild(table);
-            }
-
-            function showNotification(title, message) {
-                const notification = document.getElementById('notification');
-                const titleEl = document.getElementById('notification-title');
-                const msgEl = document.getElementById('notification-message');
-                titleEl.textContent = title;
-                msgEl.textContent = message;
-                notification.classList.add('show');
-                setTimeout(() => notification.classList.remove('show'), 3000);
-            }
-
-            window.returnSpeech = function(text) {
-                if (text && text.trim()) {
-                    textInput.value = text.trim();
-                    convertTextToBraille(text.trim());
-                }
-            };
-        });
-
-        function startAndroidSpeech() {
-            if (window.AndroidInterface && AndroidInterface.startSpeech) {
-                AndroidInterface.startSpeech();
-            } else {
-                alert("Speech recognition not supported in this environment.");
-            }
+        // ✅ Android will call this after voice input
+        function onSpeechResult(text) {
+            const textarea = document.getElementById('text-input');
+            textarea.value = text;
+            convertTextToBraille(text);
         }
     </script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/text_to_braille.js') }}"></script>
 </body>
 </html>
