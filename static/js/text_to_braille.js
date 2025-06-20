@@ -1,3 +1,4 @@
+// ✅ Full FIXED JavaScript: Text to Braille with Backend TTS (WebView Compatible)
 document.addEventListener('DOMContentLoaded', function () {
     const textInput = document.getElementById('text-input');
     const recordButton = document.getElementById('record-button');
@@ -9,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function () {
     let recognition;
     let isRecording = false;
 
-    // Initialize speech recognition
+    // ✅ Speech Recognition
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'en-US';
@@ -38,15 +39,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const combined = finalTranscript + interimTranscript;
             textInput.value = combined;
-
-            // ✅ Convert only when final text available
-            if (finalTranscript.trim()) {
-                convertTextToBraille(finalTranscript.trim());
-            }
+            if (finalTranscript.trim()) convertTextToBraille(finalTranscript.trim());
         };
 
         recognition.onerror = function (event) {
-            console.error('Recognition error:', event.error);
             showNotification('Error', 'Speech recognition error: ' + event.error);
             stopRecording();
         };
@@ -63,89 +59,79 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ✅ Typing Input
-    textInput.addEventListener('input', function () {
+    textInput.addEventListener('input', () => {
         const text = textInput.value.trim();
-        if (text) {
-            convertTextToBraille(text);
-        } else {
+        if (text) convertTextToBraille(text);
+        else {
             brailleOutput.textContent = '';
             detailedMapping.innerHTML = '';
         }
     });
 
-    // 🎤 Start / Stop Mic
-    if (recordButton) {
-        recordButton.addEventListener('click', () => {
-            if (recognition && !isRecording) {
-                textInput.value = '';
-                recognition.start();
-            }
-        });
-    }
+    // 🎤 Start / Stop
+    recordButton?.addEventListener('click', () => {
+        if (recognition && !isRecording) {
+            textInput.value = '';
+            recognition.start();
+        }
+    });
 
-    if (stopRecordButton) {
-        stopRecordButton.addEventListener('click', () => {
-            if (recognition && isRecording) {
-                recognition.stop();
-            }
-        });
-    }
+    stopRecordButton?.addEventListener('click', () => {
+        if (recognition && isRecording) recognition.stop();
+    });
 
-    // ✅ Read Aloud with WebView-safe Speech API
-    if (readAloudButton) {
-        readAloudButton.addEventListener('click', function () {
-            const text = textInput.value.trim();
-            if (!text) {
-                showNotification('Error', 'No text to read');
-                return;
-            }
+    // ✅ Read Aloud (backend TTS)
+    readAloudButton?.addEventListener('click', () => {
+        const text = textInput.value.trim();
+        if (!text) return showNotification('Error', 'No text to read');
 
-            if ('speechSynthesis' in window) {
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'en-US'; // Use 'hi-IN' for Hindi if needed
-                speechSynthesis.speak(utterance);
+        fetch('/api/text-to-speech', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text, language: 'english' })
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) return showNotification('Error', data.error);
+                const audio = new Audio(data.audio_url);
+                audio.play();
                 showNotification('Success', 'Reading text aloud');
-            } else {
-                showNotification('Error', 'Speech synthesis not supported');
-            }
-        });
-    }
+            })
+            .catch(err => {
+                console.error('TTS error:', err);
+                showNotification('Error', 'Text-to-speech failed');
+            });
+    });
 
-    // ✅ Convert to Braille (via backend API)
+    // ✅ Braille Convert API
     function convertTextToBraille(text) {
         fetch('/api/text-to-braille', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: text }),
+            body: JSON.stringify({ text: text })
         })
             .then(res => res.json())
             .then(data => {
-                if (data.error) {
-                    showNotification('Error', data.error);
-                    return;
-                }
-
+                if (data.error) return showNotification('Error', data.error);
                 brailleOutput.textContent = data.braille || '';
                 displayDetailedMapping(data.detailed_mapping || []);
             })
             .catch(err => {
-                console.error('Braille Error:', err);
-                showNotification('Error', 'Failed to convert to Braille');
+                console.error('Braille API error:', err);
+                showNotification('Error', 'Braille conversion failed');
             });
     }
 
-    // ✅ Table Output
+    // ✅ Mapping Table
     function displayDetailedMapping(mapping) {
         detailedMapping.innerHTML = '';
         if (!mapping.length) return;
 
         const table = document.createElement('table');
         table.className = 'table table-dark table-bordered';
-        const thead = document.createElement('thead');
-        thead.innerHTML = '<tr><th>Character</th><th>Braille</th></tr>';
-        table.appendChild(thead);
-
+        table.innerHTML = '<thead><tr><th>Character</th><th>Braille</th></tr></thead>';
         const tbody = document.createElement('tbody');
+
         mapping.forEach(item => {
             const row = document.createElement('tr');
             row.innerHTML = `<td>${item.original}</td><td style="font-size:24px;">${item.braille}</td>`;
@@ -156,22 +142,22 @@ document.addEventListener('DOMContentLoaded', function () {
         detailedMapping.appendChild(table);
     }
 
-    // ✅ Toast Notification
+    // ✅ Toast
     function showNotification(title, message) {
-        const notification = document.getElementById('notification');
-        const notificationTitle = document.getElementById('notification-title');
-        const notificationMessage = document.getElementById('notification-message');
+        const n = document.getElementById('notification');
+        const nt = document.getElementById('notification-title');
+        const nm = document.getElementById('notification-message');
 
-        if (notification && notificationTitle && notificationMessage) {
-            notificationTitle.textContent = title;
-            notificationMessage.textContent = message;
-            notification.classList.add('show');
-            setTimeout(() => notification.classList.remove('show'), 3000);
+        if (n && nt && nm) {
+            nt.textContent = title;
+            nm.textContent = message;
+            n.classList.add('show');
+            setTimeout(() => n.classList.remove('show'), 3000);
         } else {
             console.log(`${title}: ${message}`);
         }
     }
 
-    // ✅ Make available for Android WebView call
+    // ✅ WebView bridge
     window.convertTextToBraille = convertTextToBraille;
 });
