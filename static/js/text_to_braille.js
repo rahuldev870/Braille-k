@@ -9,23 +9,24 @@ document.addEventListener('DOMContentLoaded', function () {
     let recognition;
     let isRecording = false;
 
-    // 🎤 Initialize Speech Recognition
+    // Initialize speech recognition
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
         recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'en-US';
         recognition.continuous = true;
         recognition.interimResults = true;
 
-        recognition.onstart = () => {
+        recognition.onstart = function () {
             isRecording = true;
             recordButton.classList.add('d-none');
             stopRecordButton.classList.remove('d-none');
             showNotification('Recording Started', 'Speak now...');
         };
 
-        recognition.onresult = (event) => {
+        recognition.onresult = function (event) {
             let finalTranscript = '';
             let interimTranscript = '';
+
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const transcript = event.results[i][0].transcript;
                 if (event.results[i].isFinal) {
@@ -34,21 +35,23 @@ document.addEventListener('DOMContentLoaded', function () {
                     interimTranscript += transcript;
                 }
             }
+
             const combined = finalTranscript + interimTranscript;
             textInput.value = combined;
 
+            // ✅ Convert only when final text available
             if (finalTranscript.trim()) {
                 convertTextToBraille(finalTranscript.trim());
             }
         };
 
-        recognition.onerror = (event) => {
-            console.error('Speech Recognition Error:', event.error);
+        recognition.onerror = function (event) {
+            console.error('Recognition error:', event.error);
             showNotification('Error', 'Speech recognition error: ' + event.error);
             stopRecording();
         };
 
-        recognition.onend = () => {
+        recognition.onend = function () {
             isRecording = false;
             recordButton.classList.remove('d-none');
             stopRecordButton.classList.add('d-none');
@@ -59,22 +62,8 @@ document.addEventListener('DOMContentLoaded', function () {
         showNotification('Unsupported', 'Speech Recognition not supported');
     }
 
-    // 🎤 Start/Stop Mic Buttons
-    recordButton?.addEventListener('click', () => {
-        if (recognition && !isRecording) {
-            textInput.value = '';
-            recognition.start();
-        }
-    });
-
-    stopRecordButton?.addEventListener('click', () => {
-        if (recognition && isRecording) {
-            recognition.stop();
-        }
-    });
-
-    // 📥 Input listener
-    textInput.addEventListener('input', () => {
+    // ✅ Typing Input
+    textInput.addEventListener('input', function () {
         const text = textInput.value.trim();
         if (text) {
             convertTextToBraille(text);
@@ -84,58 +73,68 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // 🔊 Read Aloud (uses backend TTS, works in WebView + APK)
-    readAloudButton?.addEventListener('click', () => {
-        const text = textInput.value.trim();
-        if (!text) {
-            showNotification('Error', 'No text to read');
-            return;
-        }
-
-        fetch('/api/text-to-speech', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, language: 'english' })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.audio_url) {
-                const audio = new Audio(data.audio_url);
-                audio.play();
-                showNotification('Success', 'Reading text aloud...');
-            } else {
-                showNotification('Error', 'Failed to generate audio');
+    // 🎤 Start / Stop Mic
+    if (recordButton) {
+        recordButton.addEventListener('click', () => {
+            if (recognition && !isRecording) {
+                textInput.value = '';
+                recognition.start();
             }
-        })
-        .catch(err => {
-            console.error('TTS Error:', err);
-            showNotification('Error', 'Text-to-Speech failed');
         });
-    });
+    }
 
-    // 🔡 Convert Text to Braille
+    if (stopRecordButton) {
+        stopRecordButton.addEventListener('click', () => {
+            if (recognition && isRecording) {
+                recognition.stop();
+            }
+        });
+    }
+
+    // ✅ Read Aloud with WebView-safe Speech API
+    if (readAloudButton) {
+        readAloudButton.addEventListener('click', function () {
+            const text = textInput.value.trim();
+            if (!text) {
+                showNotification('Error', 'No text to read');
+                return;
+            }
+
+            if ('speechSynthesis' in window) {
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'en-US'; // Use 'hi-IN' for Hindi if needed
+                speechSynthesis.speak(utterance);
+                showNotification('Success', 'Reading text aloud');
+            } else {
+                showNotification('Error', 'Speech synthesis not supported');
+            }
+        });
+    }
+
+    // ✅ Convert to Braille (via backend API)
     function convertTextToBraille(text) {
         fetch('/api/text-to-braille', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text, language: 'english' })
+            body: JSON.stringify({ text: text }),
         })
-        .then(res => res.json())
-        .then(data => {
-            if (data.error) {
-                showNotification('Error', data.error);
-                return;
-            }
-            brailleOutput.textContent = data.braille || '';
-            displayDetailedMapping(data.detailed_mapping || []);
-        })
-        .catch(err => {
-            console.error('Braille Conversion Error:', err);
-            showNotification('Error', 'Failed to convert to Braille');
-        });
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    showNotification('Error', data.error);
+                    return;
+                }
+
+                brailleOutput.textContent = data.braille || '';
+                displayDetailedMapping(data.detailed_mapping || []);
+            })
+            .catch(err => {
+                console.error('Braille Error:', err);
+                showNotification('Error', 'Failed to convert to Braille');
+            });
     }
 
-    // 🔤 Braille Mapping Table
+    // ✅ Table Output
     function displayDetailedMapping(mapping) {
         detailedMapping.innerHTML = '';
         if (!mapping.length) return;
@@ -152,11 +151,12 @@ document.addEventListener('DOMContentLoaded', function () {
             row.innerHTML = `<td>${item.original}</td><td style="font-size:24px;">${item.braille}</td>`;
             tbody.appendChild(row);
         });
+
         table.appendChild(tbody);
         detailedMapping.appendChild(table);
     }
 
-    // 🔔 Toast Notification
+    // ✅ Toast Notification
     function showNotification(title, message) {
         const notification = document.getElementById('notification');
         const notificationTitle = document.getElementById('notification-title');
@@ -168,14 +168,10 @@ document.addEventListener('DOMContentLoaded', function () {
             notification.classList.add('show');
             setTimeout(() => notification.classList.remove('show'), 3000);
         } else {
-            alert(`${title}: ${message}`);
+            console.log(`${title}: ${message}`);
         }
     }
 
-    // 🛑 Helper for recognition
-    function stopRecording() {
-        if (recognition && isRecording) {
-            recognition.stop();
-        }
-    }
+    // ✅ Make available for Android WebView call
+    window.convertTextToBraille = convertTextToBraille;
 });
