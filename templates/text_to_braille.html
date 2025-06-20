@@ -114,7 +114,7 @@
     <!-- Footer -->
     <footer class="bg-dark text-white text-center">
         <div class="container">
-            <p class="mb-0">&copy; 2023 BrailleConnect. All rights reserved.</p>
+            <p class="mb-0">&copy;  BrailleConnect. All rights reserved.</p>
         </div>
     </footer>
 
@@ -129,13 +129,13 @@
 
     <!-- JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/text_to_braille.js') }}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            const textInput = document.getElementById('text-input');
             const recordButton = document.getElementById('record-button');
             const stopRecordButton = document.getElementById('stop-record-button');
-            const textInput = document.getElementById('text-input');
+            const brailleOutput = document.getElementById('braille-output');
+            const detailedMapping = document.getElementById('detailed-mapping');
 
             let recognition;
             let isRecording = false;
@@ -144,32 +144,29 @@
                 recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
                 recognition.lang = 'en-US';
                 recognition.continuous = true;
-                recognition.interimResults = true;
+                recognition.interimResults = false;
 
                 recognition.onstart = () => {
                     isRecording = true;
                     recordButton.classList.add('d-none');
                     stopRecordButton.classList.remove('d-none');
+                    showNotification('Recording Started', 'Speak now...');
                 };
 
                 recognition.onresult = (event) => {
                     let finalTranscript = '';
-                    let interimTranscript = '';
-                    for (let i = event.resultIndex; i < event.results.length; i++) {
-                        const transcript = event.results[i][0].transcript;
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
                         if (event.results[i].isFinal) {
-                            finalTranscript += transcript;
-                        } else {
-                            interimTranscript += transcript;
+                            finalTranscript += event.results[i][0].transcript;
                         }
                     }
-                    textInput.value = finalTranscript + interimTranscript;
+                    textInput.value = finalTranscript.trim();
+                    convertTextToBraille(finalTranscript.trim());
                 };
 
                 recognition.onerror = (event) => {
-                    console.error('Speech Recognition Error:', event.error);
-                    alert('Speech recognition error: ' + event.error);
-                    if (isRecording) recognition.stop();
+                    showNotification('Error', 'Speech recognition error: ' + event.error);
+                    stopRecording();
                 };
 
                 recognition.onend = () => {
@@ -177,6 +174,10 @@
                     recordButton.classList.remove('d-none');
                     stopRecordButton.classList.add('d-none');
                 };
+            } else {
+                recordButton.style.display = 'none';
+                stopRecordButton.style.display = 'none';
+                showNotification('Unsupported', 'Speech Recognition not supported');
             }
 
             recordButton?.addEventListener('click', () => {
@@ -187,11 +188,65 @@
             });
 
             stopRecordButton?.addEventListener('click', () => {
+                stopRecording();
+            });
+
+            function stopRecording() {
                 if (recognition && isRecording) {
                     recognition.stop();
                 }
-            });
+            }
+
+            function convertTextToBraille(text) {
+                fetch('/api/text-to-braille', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text, language: 'english' })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        showNotification('Error', data.error);
+                        return;
+                    }
+                    brailleOutput.textContent = data.braille || '';
+                    displayDetailedMapping(data.detailed_mapping || []);
+                })
+                .catch(err => {
+                    showNotification('Error', 'Failed to convert to Braille');
+                });
+            }
+
+            function displayDetailedMapping(mapping) {
+                detailedMapping.innerHTML = '';
+                if (!mapping.length) return;
+                const table = document.createElement('table');
+                table.className = 'table table-dark table-bordered';
+                const thead = document.createElement('thead');
+                thead.innerHTML = '<tr><th>Character</th><th>Braille</th></tr>';
+                table.appendChild(thead);
+                const tbody = document.createElement('tbody');
+                mapping.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td>${item.original}</td><td style="font-size:24px;">${item.braille}</td>`;
+                    tbody.appendChild(row);
+                });
+                table.appendChild(tbody);
+                detailedMapping.appendChild(table);
+            }
+
+            function showNotification(title, message) {
+                const notification = document.getElementById('notification');
+                const titleEl = document.getElementById('notification-title');
+                const msgEl = document.getElementById('notification-message');
+                titleEl.textContent = title;
+                msgEl.textContent = message;
+                notification.classList.add('show');
+                setTimeout(() => notification.classList.remove('show'), 3000);
+            }
         });
     </script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/text_to_braille.js') }}"></script>
 </body>
 </html>
