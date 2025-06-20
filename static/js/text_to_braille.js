@@ -6,34 +6,92 @@ document.addEventListener('DOMContentLoaded', function () {
     const detailedMapping = document.getElementById('detailed-mapping');
     const readAloudButton = document.getElementById('read-aloud-button');
 
-    // ✅ Android WebView Mic Integration
+    let recognition;
+    let isRecording = false;
+
+    // 🎤 Initialize Speech Recognition
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.lang = 'en-US';
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onstart = () => {
+            isRecording = true;
+            recordButton.classList.add('d-none');
+            stopRecordButton.classList.remove('d-none');
+            showNotification('Recording Started', 'Speak now...');
+        };
+
+        recognition.onresult = (event) => {
+            let finalTranscript = '';
+            let interimTranscript = '';
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+                const transcript = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    finalTranscript += transcript;
+                } else {
+                    interimTranscript += transcript;
+                }
+            }
+            const combined = finalTranscript + interimTranscript;
+            textInput.value = combined;
+
+            if (finalTranscript.trim()) {
+                convertTextToBraille(finalTranscript.trim());
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech Recognition Error:', event.error);
+            showNotification('Error', 'Speech recognition error: ' + event.error);
+            stopRecording();
+        };
+
+        recognition.onend = () => {
+            isRecording = false;
+            recordButton.classList.remove('d-none');
+            stopRecordButton.classList.add('d-none');
+        };
+    } else {
+        recordButton.style.display = 'none';
+        stopRecordButton.style.display = 'none';
+        showNotification('Unsupported', 'Speech Recognition not supported');
+    }
+
+    // 🎤 Start/Stop Mic Buttons
     recordButton?.addEventListener('click', () => {
-        if (typeof AndroidInterface !== 'undefined' && AndroidInterface.startSpeech) {
-            AndroidInterface.startSpeech(); // triggers MainActivity mic
-            showNotification('Mic Started', 'Speak now...');
-        } else {
-            showNotification('Error', 'Mic not supported on this browser.');
+        if (recognition && !isRecording) {
+            textInput.value = '';
+            recognition.start();
         }
     });
 
     stopRecordButton?.addEventListener('click', () => {
-        showNotification('Mic', 'Stop not required. It auto-stops in Android.');
+        if (recognition && isRecording) {
+            recognition.stop();
+        }
     });
 
-    // ✅ Detect input change from Android's speech and auto-convert to Braille
-    const observer = new MutationObserver(() => {
+    // 📥 Input listener
+    textInput.addEventListener('input', () => {
         const text = textInput.value.trim();
-        if (text) convertTextToBraille(text);
+        if (text) {
+            convertTextToBraille(text);
+        } else {
+            brailleOutput.textContent = '';
+            detailedMapping.innerHTML = '';
+        }
     });
-    observer.observe(textInput, { attributes: true, childList: true, subtree: true });
 
-    // 🔊 Read Aloud
+    // 🔊 Read Aloud (uses backend TTS, works in WebView + APK)
     readAloudButton?.addEventListener('click', () => {
         const text = textInput.value.trim();
         if (!text) {
             showNotification('Error', 'No text to read');
             return;
         }
+
         fetch('/api/text-to-speech', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -77,6 +135,7 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
+    // 🔤 Braille Mapping Table
     function displayDetailedMapping(mapping) {
         detailedMapping.innerHTML = '';
         if (!mapping.length) return;
@@ -97,18 +156,26 @@ document.addEventListener('DOMContentLoaded', function () {
         detailedMapping.appendChild(table);
     }
 
+    // 🔔 Toast Notification
     function showNotification(title, message) {
         const notification = document.getElementById('notification');
-        const titleEl = document.getElementById('notification-title');
-        const msgEl = document.getElementById('notification-message');
+        const notificationTitle = document.getElementById('notification-title');
+        const notificationMessage = document.getElementById('notification-message');
 
-        if (notification && titleEl && msgEl) {
-            titleEl.textContent = title;
-            msgEl.textContent = message;
+        if (notification && notificationTitle && notificationMessage) {
+            notificationTitle.textContent = title;
+            notificationMessage.textContent = message;
             notification.classList.add('show');
             setTimeout(() => notification.classList.remove('show'), 3000);
         } else {
             alert(`${title}: ${message}`);
+        }
+    }
+
+    // 🛑 Helper for recognition
+    function stopRecording() {
+        if (recognition && isRecording) {
+            recognition.stop();
         }
     }
 });
